@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morvic · Meridiano 41</title>
+    <meta name="description" content="Morvic Meridiano 41: reloj automático hecho a mano en Lima. Ábrelo pieza por pieza en 3D.">
+    <meta name="theme-color" content="#0a0908">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0908; --ink: #efe8dc; --mute: #a39a8c; --dim: #6f685e;
+            --gold: #d8b680; --gold2: #f1dcb4; --line: rgba(216, 182, 128, .26); --lume: #8dffbf;
+            --serif: 'Bodoni Moda', 'Bodoni MT', Didot, serif;
+            --sans: 'Manrope', system-ui, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-weight: 300; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+        ::selection { background: var(--gold); color: #120e08; }
+
+        /* ---------- lienzo 3D y acabado de película ---------- */
+        #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; touch-action: pan-y; cursor: grab; }
+        #gl.grabbing { cursor: grabbing; }
+        .fx { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 52%, rgba(0, 0, 0, .6) 100%); }
+        .fx::after { content: ""; position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+        /* ---------- carga ---------- */
+        #loader { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; transition: opacity 1s ease, visibility 1s; }
+        #loader.out { opacity: 0; visibility: hidden; }
+        #loader .in { text-align: center; }
+        #loader .mark { font-family: var(--serif); font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: .5em; margin-right: -.5em; animation: breathe 2.4s ease-in-out infinite; }
+        #loader .rule { width: 12rem; height: 1px; background: rgba(255, 255, 255, .1); margin: 1.8rem auto 1.2rem; overflow: hidden; }
+        #loader .rule i { display: block; height: 100%; width: 40%; background: var(--gold); animation: run 1.6s cubic-bezier(.6, 0, .4, 1) infinite; }
+        #loader small { font-size: .68rem; letter-spacing: .32em; text-transform: uppercase; color: var(--dim); }
+        @keyframes breathe { 50% { opacity: .45; } }
+        @keyframes run { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+        /* ---------- navegación ---------- */
+        .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: 22px 4vw; transition: background .4s, backdrop-filter .4s; }
+        .nav.solid { background: rgba(10, 9, 8, .72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+        .brand { font-family: var(--serif); letter-spacing: .42em; font-size: 1.05rem; color: var(--ink); text-decoration: none; }
+        .nav nav { display: flex; gap: 2.4rem; }
+        .nav nav a { font-size: .7rem; letter-spacing: .24em; text-transform: uppercase; color: var(--mute); text-decoration: none; transition: color .3s; cursor: pointer; }
+        .nav nav a:hover { color: var(--ink); }
+        .pill { border: 1px solid var(--line); color: var(--gold2); padding: .62rem 1.25rem; border-radius: 999px; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; text-decoration: none; transition: background .3s, color .3s, border-color .3s; cursor: pointer; }
+        .pill:hover { background: var(--gold); border-color: var(--gold); color: #120e08; }
+
+        /* ---------- capítulos (textos sobre el reloj) ---------- */
+        .ch { position: fixed; z-index: 5; pointer-events: none; opacity: 0; visibility: hidden; max-width: min(31rem, 86vw); --y: 0px; will-change: opacity, transform; }
+        .ch.l { left: 7vw; top: 50%; transform: translateY(calc(-50% + var(--y))); }
+        .ch.r { right: 7vw; top: 50%; transform: translateY(calc(-50% + var(--y))); }
+        .ch.b { left: 50%; bottom: 9vh; transform: translate(-50%, var(--y)); text-align: center; max-width: min(46rem, 90vw); }
+        .ch.b::before { content: ""; position: absolute; inset: -14% -12% -22%; z-index: -1; background: radial-gradient(closest-side, rgba(10, 9, 8, .78), rgba(10, 9, 8, 0)); }
+        .ch.hero { left: 7vw; bottom: 11vh; transform: translateY(var(--y)); max-width: min(30rem, 86vw); }
+        .ch.hero p { font-size: .98rem; max-width: 22rem; }
+        .eyebrow { font-size: .68rem; letter-spacing: .34em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.4rem; display: flex; align-items: center; gap: .9rem; font-weight: 500; }
+        .eyebrow::before { content: ""; width: 2.2rem; height: 1px; background: var(--gold); opacity: .6; }
+        .ch.b .eyebrow { justify-content: center; }
+        .ch.b .eyebrow::after { content: ""; width: 2.2rem; height: 1px; background: var(--gold); opacity: .6; }
+        .ch h1, .ch h2 { font-family: var(--serif); font-weight: 400; line-height: 1.02; letter-spacing: -.015em; }
+        .ch h1 { font-size: clamp(2.5rem, 4.4vw, 4.6rem); }
+        .ch h2 { font-size: clamp(2.3rem, 4.4vw, 4.6rem); }
+        .ch em { font-style: italic; color: var(--gold2); }
+        .ch p { margin-top: 1.5rem; font-size: clamp(.98rem, 1.08vw, 1.08rem); line-height: 1.7; color: var(--mute); max-width: 27rem; }
+        .ch.b p { margin-inline: auto; max-width: 34rem; }
+        .ch.glow em { color: var(--lume); text-shadow: 0 0 28px rgba(141, 255, 191, .55); }
+        .stats { display: flex; gap: 2.6rem; margin-top: 2.2rem; }
+        .stats b { display: block; font-family: var(--serif); font-size: clamp(2rem, 3vw, 3rem); font-weight: 400; color: var(--ink); line-height: 1; }
+        .stats span { display: block; margin-top: .6rem; font-size: .64rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+        .hint { display: inline-flex; gap: .7rem; align-items: center; margin-top: 1.8rem; font-size: .68rem; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); }
+        .hint i { width: 1.6rem; height: 1.6rem; border: 1px solid var(--line); border-radius: 50%; position: relative; }
+        .hint i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--gold); animation: nudge 1.8s ease-in-out infinite; }
+        @keyframes nudge { 0%, 100% { transform: translateX(-6px); } 50% { transform: translateX(6px); } }
+        .reserve { margin-top: 2rem; max-width: 22rem; }
+        .reserve header { display: flex; justify-content: space-between; font-size: .66rem; letter-spacing: .24em; text-transform: uppercase; color: var(--dim); }
+        .reserve header b { color: var(--ink); font-weight: 500; letter-spacing: .1em; font-size: .8rem; }
+        .reserve .bar { margin-top: .8rem; height: 2px; background: rgba(255, 255, 255, .1); }
+        .reserve .bar i { display: block; height: 100%; width: 14%; background: linear-gradient(90deg, var(--gold), var(--gold2)); }
+
+        /* ---------- héroe ---------- */
+        .cue { position: fixed; right: 4vw; bottom: 4vh; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: .7rem; font-size: .62rem; letter-spacing: .32em; text-transform: uppercase; color: var(--dim); pointer-events: none; }
+        .cue i { width: 1px; height: 2.6rem; background: linear-gradient(var(--gold), transparent); animation: drip 2s ease-in-out infinite; transform-origin: top; }
+        @keyframes drip { 0% { transform: scaleY(0); } 50% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+
+        /* ---------- etiquetas del despiece ---------- */
+        #labels { position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0; }
+        #labels svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+        #labels .lb { position: absolute; left: 0; top: 0; font-size: .68rem; letter-spacing: .2em; text-transform: uppercase; color: var(--ink); white-space: nowrap; font-weight: 500; }
+        #labels .lb small { display: block; color: var(--dim); letter-spacing: .1em; font-size: .64rem; margin-top: .25rem; text-transform: none; font-weight: 300; }
+
+        /* ---------- progreso ---------- */
+        .hud { position: fixed; left: 4vw; bottom: 4vh; z-index: 6; display: flex; align-items: center; gap: 1rem; font-size: .64rem; letter-spacing: .26em; text-transform: uppercase; color: var(--dim); pointer-events: none; transition: opacity .5s; }
+        .hud b { color: var(--ink); font-weight: 500; }
+        .hud .track { width: 8rem; height: 1px; background: rgba(255, 255, 255, .12); position: relative; overflow: hidden; }
+        .hud .track i { position: absolute; inset: 0; background: var(--gold); transform-origin: left; transform: scaleX(0); }
+
+        /* ---------- configurador ---------- */
+        .cfg { width: min(25rem, 88vw); }
+        .cfg.live { pointer-events: auto; }
+        .opt { margin-top: 1.7rem; }
+        .opt header { display: flex; justify-content: space-between; align-items: baseline; font-size: .64rem; letter-spacing: .24em; text-transform: uppercase; color: var(--dim); margin-bottom: .9rem; }
+        .opt header b { color: var(--ink); font-weight: 500; letter-spacing: .1em; font-size: .78rem; text-transform: none; }
+        .sw { display: flex; gap: .8rem; }
+        .sw button { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .16); cursor: pointer; position: relative; transition: transform .25s;
+            background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .5), transparent 46%), var(--c); }
+        .sw button::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid var(--gold); opacity: 0; transition: opacity .25s; }
+        .sw button.on::after { opacity: 1; }
+        .sw button:hover { transform: scale(1.08); }
+        .sw button:focus-visible { outline: 2px solid var(--gold2); outline-offset: 6px; }
+        .buy { margin-top: 2.2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+        .buy span { display: block; font-size: .64rem; letter-spacing: .24em; text-transform: uppercase; color: var(--dim); }
+        .buy strong { font-family: var(--serif); font-size: 2rem; font-weight: 400; }
+        .btn { display: inline-flex; align-items: center; gap: .7rem; background: var(--gold); color: #140f08; padding: 1rem 1.5rem; border-radius: 999px; font-weight: 600; font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; text-decoration: none; transition: background .3s, transform .3s; }
+        .btn:hover { background: var(--gold2); transform: translateY(-2px); }
+        .btn.ghost { background: transparent; color: var(--gold2); border: 1px solid var(--line); }
+        .btn.ghost:hover { background: rgba(216, 182, 128, .08); }
+        .cfg small.tip { display: block; margin-top: 1.2rem; font-size: .64rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+
+        /* ---------- contenido después de la historia ---------- */
+        #story { position: relative; }
+        .sheet { position: relative; z-index: 30; background: var(--bg); padding: 16vh 7vw; }
+        .sheet.first::before { content: ""; position: absolute; left: 0; right: 0; top: -40vh; height: 40vh; background: linear-gradient(rgba(10, 9, 8, 0), var(--bg)); pointer-events: none; }
+        .sheet h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(2.4rem, 5vw, 5rem); line-height: 1.04; letter-spacing: -.015em; }
+        .sheet h2 em { font-style: italic; color: var(--gold2); }
+        .lead { margin-top: 1.4rem; color: var(--mute); max-width: 34rem; line-height: 1.7; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 5rem; border-top: 1px solid var(--line); }
+        .grid div { padding: 2rem 2rem 2.4rem 0; border-bottom: 1px solid var(--line); }
+        .grid dt { font-size: .64rem; letter-spacing: .26em; text-transform: uppercase; color: var(--gold); font-weight: 500; }
+        .grid dd { margin-top: .9rem; font-family: var(--serif); font-size: 1.5rem; line-height: 1.25; }
+        .grid dd small { display: block; font-family: var(--sans); font-size: .86rem; color: var(--mute); margin-top: .45rem; line-height: 1.5; }
+        .cta { text-align: center; padding-block: 20vh; border-top: 1px solid rgba(255, 255, 255, .05); }
+        .cta .lead { margin-inline: auto; }
+        .cta .row { margin-top: 2.6rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+        footer { position: relative; z-index: 30; background: var(--bg); padding: 3rem 7vw 3.4rem; display: flex; justify-content: space-between; gap: 1.4rem; flex-wrap: wrap; font-size: .74rem; color: var(--dim); border-top: 1px solid rgba(255, 255, 255, .05); }
+        footer a { color: var(--gold2); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        .reveal { opacity: 0; transform: translateY(28px); transition: opacity 1s ease, transform 1s cubic-bezier(.2, .7, .2, 1); }
+        .reveal.in { opacity: 1; transform: none; }
+
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 760px) { .nav nav { display: none; } }
+        @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+        @media (max-aspect-ratio: 1/1) {
+            .ch.l, .ch.r, .ch.hero { left: 6vw; right: 6vw; top: auto; bottom: 8vh; transform: translateY(var(--y)); max-width: none; }
+            .ch.b { bottom: 8vh; }
+            .ch h1 { font-size: clamp(2.3rem, 10vw, 3.6rem); }
+            .ch h2 { font-size: clamp(2rem, 8.6vw, 3rem); }
+            .ch p { font-size: .94rem; margin-top: 1rem; }
+            .stats { gap: 1.6rem; }
+            .hud, .cue { display: none; }
+            .fx { background: radial-gradient(ellipse at 50% 40%, transparent 50%, rgba(0, 0, 0, .55) 100%), linear-gradient(rgba(10, 9, 8, 0) 45%, rgba(10, 9, 8, .88) 82%); }
+            .cfg { bottom: 3vh; }
+            .cfg h2, .cfg .eyebrow { display: none; }
+            .opt { margin-top: 1rem; }
+            .buy { margin-top: 1.2rem; padding-top: 1rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="loader"><div class="in"><div class="mark">MORVIC</div><div class="rule"><i></i></div><small id="loadMsg">Preparando el calibre</small></div></div>
+
+    <canvas id="gl" aria-label="Reloj Morvic Meridiano 41 en 3D, arrastra para girarlo"></canvas>
+    <div class="fx"></div>
+
+    <header class="nav" id="nav">
+        <a class="brand" href="#" data-go="0">MORVIC</a>
+        <nav>
+            <a data-go="2">Despiece</a>
+            <a data-go="5">Calibre</a>
+            <a data-go="9">Configura</a>
+            <a href="#ficha">Ficha</a>
+        </nav>
+        <a class="pill" data-go="9">Reservar</a>
+    </header>
+
+    <!-- Capítulos: cada uno aparece cuando el scroll llega a su momento -->
+    <section class="ch hero" data-i="0">
+        <p class="eyebrow">Meridiano 41</p>
+        <h1>El tiempo,<br><em>hecho a mano.</em></h1>
+        <p>Cuarenta y un milímetros de acero, zafiro y paciencia, armados pieza por pieza en Lima.</p>
+    </section>
+    <section class="ch l" data-i="1">
+        <p class="eyebrow">01 — Anatomía</p>
+        <h2>Un segundo<br>tiene <em>132 piezas.</em></h2>
+        <p>Abrimos el Meridiano 41 para que veas lo que normalmente solo ve el relojero.</p>
+    </section>
+    <section class="ch l" data-i="2">
+        <p class="eyebrow">02 — Despiece</p>
+        <h2>Cada capa,<br><em>en su lugar.</em></h2>
+        <p>Tolerancias de dos centésimas de milímetro. Ni una más.</p>
+    </section>
+    <section class="ch l" data-i="3">
+        <p class="eyebrow">03 — La esfera</p>
+        <h2>Azul medianoche,<br><em>rayos de sol.</em></h2>
+        <p>La luz se abre desde el centro como un amanecer. Los índices facetados se aplican a mano, uno por uno, en oro champagne.</p>
+    </section>
+    <section class="ch b glow" data-i="4">
+        <p class="eyebrow">04 — Lume</p>
+        <h2>Cuando todo se apaga,<br><em>Morvic sigue hablando.</em></h2>
+        <p>Pigmento luminiscente en agujas e índices: se carga con la luz del día y brilla hasta el amanecer.</p>
+    </section>
+    <section class="ch r" data-i="5">
+        <p class="eyebrow">05 — Calibre MV-01</p>
+        <h2>Late ocho veces<br><em>por segundo.</em></h2>
+        <div class="stats">
+            <div><b>28 800</b><span>Alternancias / h</span></div>
+            <div><b>25</b><span>Rubíes</span></div>
+            <div><b>42 h</b><span>Reserva</span></div>
+        </div>
+    </section>
+    <section class="ch l" data-i="6">
+        <p class="eyebrow">06 — La corona</p>
+        <h2>Dale cuerda.<br><em>Siente cada diente.</em></h2>
+        <p>Arrastra hacia arriba o hacia abajo sobre el reloj: la corona gira y el trinquete avanza diente por diente.</p>
+        <div class="reserve"><header><span>Reserva de marcha</span><b id="resVal">6 h</b></header><div class="bar"><i id="resBar"></i></div></div>
+    </section>
+    <section class="ch l" data-i="7">
+        <p class="eyebrow">07 — El rotor</p>
+        <h2>Se da cuerda<br><em>con tu muñeca.</em></h2>
+        <p>El rotor de oro champagne cae con la gravedad y gira con cada gesto. Arrastra el reloj y míralo oscilar a través del fondo de zafiro.</p>
+        <span class="hint"><i></i>Arrastra para moverlo</span>
+    </section>
+    <section class="ch b" data-i="8">
+        <p class="eyebrow">08 — Ensamblaje</p>
+        <h2>Una persona. <em>Un reloj.</em></h2>
+        <p>Cada Meridiano lo arma de principio a fin el mismo relojero, que firma el fondo con su número.</p>
+    </section>
+    <aside class="ch r cfg" data-i="9" id="config">
+        <p class="eyebrow">09 — Configura</p>
+        <h2>Hazlo <em>tuyo.</em></h2>
+        <div class="opt" data-k="caja"><header><span>Caja</span><b></b></header><div class="sw"></div></div>
+        <div class="opt" data-k="esfera"><header><span>Esfera</span><b></b></header><div class="sw"></div></div>
+        <div class="opt" data-k="correa"><header><span>Correa</span><b></b></header><div class="sw"></div></div>
+        <div class="buy"><div><span>Meridiano 41</span><strong id="price">S/ 4,900</strong></div><a class="btn" id="buy" target="_blank" rel="noopener">Reservar</a></div>
+        <small class="tip">Arrastra el reloj para girarlo</small>
+    </aside>
+
+    <div id="labels"><svg></svg></div>
+    <div class="cue" id="cue"><span>Desliza para abrirlo</span><i></i></div>
+    <div class="hud" id="hud"><b id="hudNum">00</b><span class="track"><i id="hudBar"></i></span><span id="hudName">Morvic</span></div>
+
+    <main>
+        <div id="story"></div>
+        <section class="sheet first" id="ficha">
+            <p class="eyebrow reveal">Ficha técnica</p>
+            <h2 class="reveal">Meridiano 41,<br><em>en números.</em></h2>
+            <dl class="grid">
+                <div class="reveal"><dt>Calibre</dt><dd>MV-01 automático<small>Diseñado y ensamblado en Lima</small></dd></div>
+                <div class="reveal"><dt>Frecuencia</dt><dd>28 800 A/h<small>4 Hz, segundero de barrido suave</small></dd></div>
+                <div class="reveal"><dt>Reserva de marcha</dt><dd>42 horas<small>Barrilete único, rotor bidireccional</small></dd></div>
+                <div class="reveal"><dt>Caja</dt><dd>41 × 11,3 mm<small>Acero 316L pulido espejo y satinado</small></dd></div>
+                <div class="reveal"><dt>Cristal</dt><dd>Zafiro abombado<small>Antirreflejo en ambas caras</small></dd></div>
+                <div class="reveal"><dt>Fondo</dt><dd>Zafiro<small>Rotor de oro champagne grabado a mano</small></dd></div>
+                <div class="reveal"><dt>Hermeticidad</dt><dd>100 metros<small>Corona atornillada</small></dd></div>
+                <div class="reveal"><dt>Esfera</dt><dd>Rayos de sol<small>Índices facetados aplicados a mano</small></dd></div>
+                <div class="reveal"><dt>Correa</dt><dd>Piel de becerro<small>Cosida a mano, 20 mm</small></dd></div>
+            </dl>
+        </section>
+        <section class="sheet cta">
+            <p class="eyebrow reveal" style="justify-content:center">Edición anual</p>
+            <h2 class="reveal">Solo 41 relojes<br><em>al año.</em></h2>
+            <p class="lead reveal">Cada Meridiano 41 se arma por encargo. Resérvalo hoy y te avisamos el día en que empieza a latir.</p>
+            <div class="row reveal"><a class="btn" data-go="9">Configurar el mío</a><a class="btn ghost" data-go="0">Verlo otra vez</a></div>
+        </section>
+    </main>
+    <footer>
+        <span>© 2026 Morvic — marca conceptual. Modelado en Blender y desarrollo web por Fabrizio Díaz.</span>
+        <a href="index.html">Ver otras landings →</a>
+    </footer>
+
+    <script src="assets/3d/morvic-data.js"></script>
+    <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    } }
+    </script>
+    <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+    const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+    const TAU = Math.PI * 2;
+    const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+    const smooth = x => x * x * (3 - 2 * x);
+    const lerp = (a, b, k) => a + (b - a) * k;
+    const params = new URLSearchParams(location.search);
+    const SHOT = params.has('c');                       // ?c=3 abre directo en un capítulo (capturas)
+    const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ================================================================
+       Guion: un estado de cámara/reloj por capítulo. El scroll interpola.
+       rx/ry/rz: giro del reloj · dist: distancia de cámara · shift: corre el
+       reloj a la derecha (+) o izquierda (−) · explode/liftA/liftB: despiece
+       ================================================================ */
+    const DEF = { rx: 1.3, ry: 0, rz: 0, dist: 13, tx: 0, ty: 0, shift: 0, explode: 0, liftA: 0, liftB: 0, crown: 0, light: 1, lume: 0, word: 0, env: 0, envX: 0, wind: 0, free: 0 };
+    const S = [
+        { rx: 1.2, ry: -0.42, rz: 0.32, dist: 13.4, ty: -0.35, shift: 0.13, word: 1 },                           // 0 héroe
+        { rx: 0.88, ry: -0.6, rz: 0.12, dist: 17, shift: 0.2, explode: 0.24, ty: 0.4, env: 0.6 },                 // 1 anatomía
+        { rx: 0.55, ry: -0.78, rz: 0.04, dist: 29, shift: 0.06, explode: 1, ty: 1.3, env: 1.2 },                 // 2 despiece
+        { rx: 1.2, ry: -0.2, rz: 0.24, dist: 8.4, shift: 0.2, liftA: 1, env: 1.8 },                              // 3 esfera
+        { rx: 1.4, ry: -0.08, rz: 0.08, dist: 14.5, ty: -0.85, liftA: 1, light: 0.02, lume: 1, env: 1.8 },      // 4 lume
+        { rx: 1.0, ry: -0.36, rz: 0.2, dist: 10.4, shift: -0.22, liftA: 1, liftB: 1, env: 2.4 },                  // 5 calibre
+        { rx: 1.05, ry: -0.15, rz: -0.5, dist: 11.5, tx: 0.4, shift: 0.24, liftA: 1, liftB: 1, crown: 1, wind: 1, env: 2.9 }, // 6 corona
+        { rx: 1.3, ry: 0.28, rz: Math.PI - 0.38, dist: 11.5, shift: 0.2, env: 3.3, envX: -1.1, free: 1 },         // 7 rotor
+        { rx: 1.22, ry: -0.36, rz: 0.3, dist: 15, ty: -1.5, env: 4.4 },                                           // 8 ensamblaje
+        { rx: 1.2, ry: -0.2, rz: 0.3, dist: 12.4, shift: -0.21, env: 5.0, free: 1 },                              // 9 configurador
+    ].map(s => ({ ...DEF, ...s }));
+    const NAMES = ['Morvic', 'Anatomía', 'Despiece', 'La esfera', 'Lume', 'Calibre MV-01', 'La corona', 'El rotor', 'Ensamblaje', 'Configura'];
+    const KEYS = Object.keys(DEF);
+    const FAST = new Set(['liftA', 'liftB', 'crown']);
+
+    function stateAt(c) {
+        const i = Math.min(Math.floor(c), S.length - 1), f = c - i;
+        const a = S[i], b = S[Math.min(i + 1, S.length - 1)], k = smooth(clamp((f - 0.28) / 0.6));
+        const kFast = smooth(clamp((f - 0.22) / 0.36));     // las piezas entran/salen antes de que gire la cámara
+        const o = {};
+        for (const key of KEYS) o[key] = lerp(a[key], b[key], FAST.has(key) ? kFast : k);
+        return o;
+    }
+
+    // Despiece en coordenadas del modelo (Y = eje de la esfera, −Z = las 12)
+    const EXP = {
+        Cristal: [0, 4.6, 0], Bisel: [0, 3.8, 0], Aguja_Segundos: [0, 3.25, 0], Aguja_Minutos: [0, 2.95, 0], Aguja_Horas: [0, 2.65, 0],
+        Esfera: [0, 2.0, 0], Corona: [1.6, 0, 0], Puente: [0, 1.3, 0], Puente_Volante: [0, 1.3, 0], Trinquete: [0, 1.0, 0],
+        Ancora: [0, 0.95, 0], Rueda_Escape: [0, 0.9, 0], Volante: [0, 0.85, 0], Rueda_Segundos: [0, 0.8, 0], Rueda_Tercera: [0, 0.7, 0],
+        Barrilete: [0, 0.65, 0], Rueda_Centro: [0, 0.55, 0], Rotor: [0, -1.5, 0], Fondo: [0, -2.5, 0],
+        Correa_Superior: [0, 0, -0.6], Correa_Inferior: [0, 0, 0.6],
+    };
+    const LIFT_A = { Cristal: [0, 3, -15], Bisel: [0, 2.6, -14] };
+    const LIFT_B = { Aguja_Segundos: [0, 2.6, -13], Aguja_Minutos: [0, 2.5, -13], Aguja_Horas: [0, 2.4, -13], Esfera: [0, 2.2, -13] };
+    const LABELS = [
+        ['Cristal', 'Cristal de zafiro', 'Abombado, antirreflejo', 1.8],
+        ['Bisel', 'Bisel', 'Pulido espejo', 2.05],
+        ['Aguja_Minutos', 'Agujas', 'Con lume a mano', 1.5],
+        ['Esfera', 'Esfera', 'Rayos de sol', 1.8],
+        ['Puente', 'Puentes', 'Rodiados, 25 rubíes', 1.6],
+        ['Caja', 'Caja', 'Acero 316L · 41 mm', 2.1],
+        ['Rotor', 'Rotor', 'Oro champagne', 1.55],
+        ['Fondo', 'Fondo', 'Zafiro grabado', 2.0],
+    ];
+
+    /* ================================================================ render */
+    const canvas = $('#gl');
+    let renderer;
+    try {
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    } catch (e) {
+        $('#loadMsg').textContent = 'Tu navegador no pudo iniciar el 3D';
+        throw e;
+    }
+    const PORTRAIT = () => innerWidth < innerHeight;
+    // Resolución adaptable: arranca moderada y baja sola si la GPU no llega a ~45 fps
+    let dpr = Math.min(devicePixelRatio, 1.5);
+    renderer.setPixelRatio(dpr);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    const scene = new THREE.Scene();
+    const BG = new THREE.Color(0x0a0908), BG_DARK = new THREE.Color(0x010202);
+    scene.background = BG.clone();
+    const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 200);
+
+    // Estudio fotográfico: cajas de luz que se reflejan en el acero y el zafiro
+    (function studio() {
+        const s = new THREE.Scene();
+        s.add(new THREE.Mesh(new THREE.BoxGeometry(24, 24, 24), new THREE.MeshBasicMaterial({ color: 0x040404, side: THREE.BackSide })));
+        const panel = (w, h, pos, k, color = 0xffffff) => {
+            const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.DoubleSide }));
+            m.position.set(...pos); m.lookAt(0, 0, 0); s.add(m);
+        };
+        panel(12, 3.5, [0, 10, 2], 7);
+        panel(2.2, 14, [-10, 1, 3], 5, 0xffeed6);
+        panel(2.2, 14, [10, 1, -3], 3.2, 0xdde6ff);
+        panel(10, 3.5, [0, 3, 10], 2.4);
+        panel(7, 2, [2, -7, -9], 2.6, 0xffd29a);
+        scene.environment = new THREE.PMREMGenerator(renderer).fromScene(s, 0.02).texture;
+    })();
+
+    // El bloom solo se usa en el capítulo del lume; el resto se dibuja directo (mucho más liviano)
+    const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 2 }));
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.18, 0.55, 0.85);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    // Halo cálido detrás del reloj y la marca gigante del héroe
+    function canvasTex(w, h, draw) {
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        draw(c.getContext('2d'));
+        const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+        return t;
+    }
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), new THREE.MeshBasicMaterial({
+        map: canvasTex(512, 512, g => {
+            const gr = g.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gr.addColorStop(0, 'rgba(255,210,150,.5)'); gr.addColorStop(.32, 'rgba(190,140,85,.16)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+        }), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, opacity: .55,
+    }));
+    halo.position.set(0, 0, -7); halo.renderOrder = -1; scene.add(halo);
+    const word = new THREE.Mesh(new THREE.PlaneGeometry(21, 4.9), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
+    word.position.set(0, 1.5, -11); word.renderOrder = -2; scene.add(word);
+    function drawWord() {
+        word.material.map = canvasTex(2400, 560, g => {
+            g.letterSpacing = '50px';
+            g.font = '400 420px "Bodoni Moda", "Bodoni MT", serif';
+            const fit = Math.min(1, 2250 / g.measureText('MORVIC').width);   // que la palabra entre completa
+            g.font = `400 ${Math.floor(420 * fit)}px "Bodoni Moda", "Bodoni MT", serif`;
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            const gr = g.createLinearGradient(0, 70, 0, 500);
+            gr.addColorStop(0, '#d7bf95'); gr.addColorStop(.55, '#8a6c42'); gr.addColorStop(1, '#2e2213');
+            g.fillStyle = gr; g.fillText('MORVIC', 1230, 300);
+        });
+        word.material.needsUpdate = true;
+    }
+
+    /* ================================================================ materiales */
+    // Acabados de relojería hechos en el shader (sin texturas): rayos de sol, côtes de Genève, perlage
+    const FINISH = {
+        sunburst: `{ vec2 p = vLoc.xz; float a = atan(p.y, p.x);
+            float n = (hsh(floor(a * 720.)) - .5) * .2 + (hsh(floor(a * 140.) + 7.) - .5) * .14;
+            vec2 t = normalize(vec2(-p.y, p.x) + 1e-5);
+            normal = normalize(normal + (normalize(vAX) * t.x + normalize(vAZ) * t.y) * n); }`,
+        cotes: `{ vec2 p = vLoc.xz; vec2 d = normalize(vec2(.8, .6)); float w = fract(dot(p, d) * 5.5) - .5;
+            normal = normalize(normal + (normalize(vAX) * d.x + normalize(vAZ) * d.y) * w * .5); }`,
+        perlage: `{ vec2 q = vLoc.xz * 10.; q.x += .5 * mod(floor(q.y), 2.); vec2 f = fract(q) - .5; float r = length(f);
+            vec2 rd = f / max(r, 1e-4); float s = sin(r * 48.) * .14 * (1. - smoothstep(.42, .5, r));
+            normal = normalize(normal + (normalize(vAX) * rd.x + normalize(vAZ) * rd.y) * s); }`,
+    };
+    function finish(m, kind) {
+        m.onBeforeCompile = sh => {
+            sh.vertexShader = sh.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vLoc; varying vec3 vAX; varying vec3 vAZ;')
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLoc = position; vAX = (modelViewMatrix * vec4(1., 0., 0., 0.)).xyz; vAZ = (modelViewMatrix * vec4(0., 0., 1., 0.)).xyz;');
+            sh.fragmentShader = sh.fragmentShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vLoc; varying vec3 vAX; varying vec3 vAZ;\nfloat hsh(float n) { return fract(sin(n * 12.9898) * 43758.5453); }')
+                .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FINISH[kind]);
+        };
+        m.customProgramCacheKey = () => kind;
+        return m;
+    }
+    const P = (o) => new THREE.MeshPhysicalMaterial(o);
+    const SPEC = {
+        Acero: () => P({ color: 0xdadbde, metalness: 1, roughness: 0.13 }),
+        Oro: () => P({ color: 0xe6c08a, metalness: 1, roughness: 0.2 }),
+        Segundero: () => P({ color: 0xe6c08a, metalness: 1, roughness: 0.2 }),
+        Esfera: () => finish(P({ color: 0x0c1a3c, metalness: 0.6, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 }), 'sunburst'),
+        Impresion: () => P({ color: 0xe9cf9f, metalness: 0.6, roughness: 0.35 }),
+        Lume: () => P({ color: 0xdfe9d6, roughness: 0.5, emissive: 0x6dffb0, emissiveIntensity: 0 }),
+        // vidrio "aditivo": solo suma sus reflejos sobre lo que hay detrás (más barato y limpio que la transmisión)
+        Zafiro: () => P({ color: 0x000000, metalness: 0, roughness: 0.03, ior: 1.77, envMapIntensity: 1.1, transparent: true, opacity: 0.06,
+            blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, depthWrite: false }),
+        Platina: () => finish(P({ color: 0x9a9ca1, metalness: 1, roughness: 0.34 }), 'perlage'),
+        Rodio: () => finish(P({ color: 0xd8dade, metalness: 1, roughness: 0.2 }), 'cotes'),
+        Ruedas: () => P({ color: 0xf8d596, metalness: 1, roughness: 0.36, envMapIntensity: 1.7 }),
+        Rubi: () => P({ color: 0xc4001f, metalness: 0, roughness: 0.04, clearcoat: 1, sheen: 0.4, sheenColor: 0xff3355 }),
+        AceroAzul: () => P({ color: 0x1d44b0, metalness: 1, roughness: 0.18 }),
+        Cuero: () => P({ color: 0x4a2a18, roughness: 0.62, sheen: 0.7, sheenRoughness: 0.45, sheenColor: 0x8a5a3a }),
+        Costura: () => P({ color: 0xd9c6a2, roughness: 0.8 }),
+        Ojal: () => P({ color: 0x070605, roughness: 0.9 }),
+        Grabado: () => P({ color: 0x2a1f12, metalness: 0.6, roughness: 0.5 }),
+    };
+    const MATS = {};
+    const TARGET = {};                                  // colores hacia los que se mueve el configurador
+
+    /* ================================================================ configurador */
+    const BASE_PRICE = 4900;
+    const OPTS = {
+        caja: [
+            { id: 'acero', name: 'Acero pulido', sw: '#d9dadd', price: 0, set: { Acero: [0xdadbde, 0.13] } },
+            { id: 'oro', name: 'Oro rosa 18k', sw: '#e3ab8e', price: 7200, set: { Acero: [0xe9b096, 0.16] } },
+            { id: 'dlc', name: 'Negro DLC', sw: '#2b2b2e', price: 900, set: { Acero: [0x2c2c30, 0.3] } },
+        ],
+        esfera: [
+            { id: 'medianoche', name: 'Azul medianoche', sw: '#13234a', set: { Esfera: [0x0c1a3c], Impresion: [0xe9cf9f] } },
+            { id: 'onix', name: 'Ónix', sw: '#0d0d0f', set: { Esfera: [0x0a0a0c], Impresion: [0xe9cf9f] } },
+            { id: 'verde', name: 'Verde inglés', sw: '#123a2b', set: { Esfera: [0x0b2a1e], Impresion: [0xe9cf9f] } },
+            { id: 'plata', name: 'Plata ópalo', sw: '#c9ccd2', set: { Esfera: [0xbfc3c9], Impresion: [0x1d2848] } },
+        ],
+        correa: [
+            { id: 'habano', name: 'Café habano', sw: '#5a3320', set: { Cuero: [0x4a2a18], Costura: [0xd9c6a2] } },
+            { id: 'negro', name: 'Negro', sw: '#161515', set: { Cuero: [0x141313], Costura: [0x8a8070] } },
+            { id: 'noche', name: 'Azul noche', sw: '#18264a', set: { Cuero: [0x16223f], Costura: [0xc9bda5] } },
+            { id: 'arena', name: 'Arena', sw: '#b9a07c', set: { Cuero: [0xa88c66], Costura: [0xf4ead8] } },
+        ],
+    };
+    const choice = { caja: 'acero', esfera: 'medianoche', correa: 'habano' };
+    for (const k in choice) if (OPTS[k].some(o => o.id === params.get(k))) choice[k] = params.get(k);   // ?caja=oro&esfera=plata…
+    function applyChoice() {
+        let price = BASE_PRICE;
+        const names = [];
+        for (const [k, list] of Object.entries(OPTS)) {
+            const o = list.find(x => x.id === choice[k]);
+            price += o.price || 0;
+            names.push(o.name.toLowerCase());
+            const box = $(`.opt[data-k="${k}"]`);
+            box.querySelector('header b').textContent = o.name;
+            box.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === o.id));
+            for (const [mat, [hex, rough]] of Object.entries(o.set)) TARGET[mat] = { color: new THREE.Color(hex), rough };
+        }
+        const fmt = 'S/ ' + price.toLocaleString('es-PE');
+        $('#price').textContent = fmt;
+        const msg = `Hola Morvic, quiero reservar un Meridiano 41 con caja ${names[0]}, esfera ${names[1]} y correa ${names[2]} (${fmt}).`;
+        $('#buy').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+    }
+    for (const [k, list] of Object.entries(OPTS)) {
+        const sw = $(`.opt[data-k="${k}"] .sw`);
+        for (const o of list) {
+            const b = document.createElement('button');
+            b.dataset.v = o.id; b.style.setProperty('--c', o.sw); b.title = o.name; b.setAttribute('aria-label', o.name);
+            b.addEventListener('click', () => { choice[k] = o.id; applyChoice(); });
+            sw.appendChild(b);
+        }
+    }
+    applyChoice();
+
+    /* ================================================================ modelo */
+    const watch = new THREE.Group(); scene.add(watch);
+    const parts = {}, base = {};
+    const V = a => new THREE.Vector3(...a);
+    const EXPV = {}, LIFTA = {}, LIFTB = {}, DELAY = {};
+    const maxOff = Math.max(...Object.values(EXP).map(a => Math.hypot(...a)));
+    for (const [n, a] of Object.entries(EXP)) { EXPV[n] = V(a).multiplyScalar(1.25); DELAY[n] = 1 - Math.hypot(...a) / maxOff; }
+    for (const [n, a] of Object.entries(LIFT_A)) LIFTA[n] = V(a);
+    for (const [n, a] of Object.entries(LIFT_B)) LIFTB[n] = V(a);
+
+    function loadModel() {
+        // meshopt se decodifica sin Workers, así funciona también abriendo el archivo con doble clic
+        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+        const bin = Uint8Array.from(atob(window.MORVIC_GLB), ch => ch.charCodeAt(0)).buffer;
+        $('#loadMsg').textContent = 'Ensamblando 23 piezas';
+        return new Promise((ok, fail) => loader.parse(bin, '', g => ok(g.scene), fail));
+    }
+    addEventListener('unhandledrejection', e => { $('#loadMsg').textContent = 'Error: ' + (e.reason && e.reason.message || e.reason); });
+    addEventListener('error', e => { $('#loadMsg').textContent = 'Error: ' + e.message; });
+
+    function setup(root) {
+        watch.add(root);
+        root.traverse(o => {
+            if (o.name && !parts[o.name]) parts[o.name] = o;
+            if (o.isMesh) {
+                const n = o.material.name;
+                if (!MATS[n]) { MATS[n] = SPEC[n] ? SPEC[n]() : o.material; MATS[n].name = n; }
+                o.material = MATS[n];
+            }
+        });
+        for (const [n, o] of Object.entries(parts)) base[n] = o.position.clone();
+        for (const [n, t] of Object.entries(TARGET)) { if (MATS[n]) { MATS[n].color.copy(t.color); if (t.rough != null) MATS[n].roughness = t.rough; } }
+    }
+
+    /* ================================================================ interacción */
+    let mouseX = 0, mouseY = 0, drag = null, yaw = 0, pitch = 0, dragWind = 0, chapter = 0;
+    addEventListener('pointermove', e => {
+        mouseX = e.clientX / innerWidth * 2 - 1; mouseY = e.clientY / innerHeight * 2 - 1;
+        if (!drag) return;
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        drag.x = e.clientX; drag.y = e.clientY;
+        if (chapter === 6) dragWind += (dy + dx * 0.4) * 0.025;
+        else { yaw += dx * 0.008; pitch = clamp(pitch + dy * 0.006, -0.9, 0.9); }
+    });
+    canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; canvas.classList.add('grabbing'); });
+    const release = () => { drag = null; canvas.classList.remove('grabbing'); };
+    addEventListener('pointerup', release);
+    addEventListener('pointercancel', release);
+
+    const STEP = 0.85;                                  // pantallas de scroll por capítulo
+    let H = innerHeight * STEP;
+    const story = $('#story');
+    function layout() {
+        H = innerHeight * STEP;
+        story.style.height = params.has('ficha') ? '0px' : ((S.length - 1) * H + innerHeight * 1.6) + 'px';
+        renderer.setPixelRatio(dpr);
+        composer.setPixelRatio(dpr);
+        renderer.setSize(innerWidth, innerHeight, false);
+        composer.setSize(innerWidth, innerHeight);
+        bloom.resolution.set(innerWidth / 2, innerHeight / 2);
+        camera.aspect = innerWidth / innerHeight;
+    }
+    layout();
+    addEventListener('resize', layout);
+    $$('[data-go]').forEach(a => a.addEventListener('click', e => {
+        e.preventDefault();
+        scrollTo({ top: Number(a.dataset.go) * H + 2, behavior: 'smooth' });
+    }));
+    if (params.has('ficha')) { $$('.reveal').forEach(e => { e.style.transition = 'none'; e.classList.add('in'); }); }   // capturas
+    const io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } }), { threshold: 0.2 });
+    $$('.reveal').forEach(el => io.observe(el));
+
+    /* ================================================================ bucle */
+    const chEls = $$('.ch'), cfgEl = $('#config'), labelsEl = $('#labels'), svg = labelsEl.querySelector('svg');
+    const labelEls = LABELS.map(([, title, sub]) => {
+        const d = document.createElement('div'); d.className = 'lb'; d.innerHTML = `${title}<small>${sub}</small>`;
+        labelsEl.appendChild(d); return d;
+    });
+    const qState = new THREE.Quaternion(), qUser = new THREE.Quaternion(), qInv = new THREE.Quaternion(), eul = new THREE.Euler(), tmp = new THREE.Vector3(), down = new THREE.Vector3();
+    const clock = new THREE.Clock();
+    let c = 0, introT0 = 0, rotorA = 0, rotorV = 0, wind = 0, ready = false, frameMs = 16, lastAdapt = 0, hudChapter = -1, lastReserve = -1;
+
+    function frame() {
+        requestAnimationFrame(frame);
+        if (!ready) return;
+        const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+        const vh = innerHeight;
+        const storyEnd = (S.length - 1) * H;
+        const after = (scrollY - storyEnd - vh * 0.6) / vh;          // > 0 cuando la ficha técnica empieza a tapar
+        const cT = SHOT ? Number(params.get('c')) : clamp(scrollY / H, 0, S.length - 1);
+        c = SHOT ? cT : c + (cT - c) * (1 - Math.exp(-dt * 7.5));
+        chapter = Math.round(c);
+        const st = stateAt(c);
+        const intro = SHOT || REDUCE ? 1 : smooth(clamp((performance.now() - introT0) / 2600));
+
+        // ---------- textos ----------
+        chEls.forEach(el => {
+            const d = c - Number(el.dataset.i);
+            let vis = d < -0.08 ? clamp((d + 0.3) / 0.22) : clamp(1 - (d - 0.3) / 0.2);
+            if (Number(el.dataset.i) === S.length - 1) vis = clamp((d + 0.3) / 0.22) * clamp(1 - after * 1.5);
+            if (Number(el.dataset.i) === 0) vis *= intro;
+            el.style.opacity = vis;
+            el.style.visibility = vis > 0.01 ? 'visible' : 'hidden';
+            el.style.setProperty('--y', ((1 - vis) * (d < 0 ? 26 : -26)).toFixed(1) + 'px');
+        });
+        cfgEl.classList.toggle('live', chapter === S.length - 1 && after < 0.5);
+        $('#cue').style.opacity = clamp(1 - c * 4) * intro;
+        $('#hud').style.opacity = clamp(c * 3) * clamp(1 - after * 2);
+        if (chapter !== hudChapter) {
+            hudChapter = chapter;
+            $('#hudNum').textContent = String(chapter).padStart(2, '0') + ' / 09';
+            $('#hudName').textContent = NAMES[chapter];
+        }
+        $('#hudBar').style.transform = `scaleX(${(c / (S.length - 1)).toFixed(4)})`;
+        $('#nav').classList.toggle('solid', after > 0.2);
+        if (after > 1.1) return;                                      // el reloj quedó tapado: no gastar GPU
+
+        // ---------- reloj ----------
+        const portrait = PORTRAIT();
+        eul.set(st.rx + mouseY * 0.05 * (1 - st.free), st.ry, st.rz + mouseX * 0.08 * (1 - st.free) - (1 - intro) * 0.9);
+        qState.setFromEuler(eul);
+        if (!drag && !st.free) { yaw *= Math.exp(-dt * 2.2); pitch *= Math.exp(-dt * 2.2); }
+        qUser.setFromEuler(eul.set(pitch, yaw, 0));
+        watch.quaternion.copy(qUser).multiply(qState);
+        watch.position.y = (REDUCE ? 0 : Math.sin(t * 0.7) * 0.07) - (1 - intro) * 1.2;
+
+        for (const [n, o] of Object.entries(parts)) {
+            if (!base[n] || !(n in EXPV || n in LIFTA || n in LIFTB)) continue;
+            o.position.copy(base[n]);
+            if (EXPV[n]) o.position.addScaledVector(EXPV[n], smooth(clamp(st.explode * 1.6 - DELAY[n] * 0.6)));
+            if (LIFTA[n]) o.position.addScaledVector(LIFTA[n], smooth(clamp(st.liftA * 1.2 - (n === 'Bisel' ? 0.2 : 0))));
+            if (LIFTB[n]) o.position.addScaledVector(LIFTB[n], smooth(clamp(st.liftB * 1.3 - (n === 'Esfera' ? 0.3 : 0))));
+        }
+        if (parts.Corona) parts.Corona.position.x += st.crown * 0.32;
+
+        // ---------- hora real y tren de engranajes ----------
+        const now = new Date();
+        const sec = now.getSeconds() + Math.floor(now.getMilliseconds() / 125) / 8;    // barrido de 8 pasos por segundo
+        const min = now.getMinutes() + sec / 60, hr = (now.getHours() % 12) + min / 60;
+        if (parts.Aguja_Segundos) {
+            parts.Aguja_Segundos.rotation.set(0, -sec / 60 * TAU, 0);
+            parts.Aguja_Minutos.rotation.set(0, -min / 60 * TAU, 0);
+            parts.Aguja_Horas.rotation.set(0, -hr / 12 * TAU, 0);
+            const bal = Math.sin(t * TAU * 2.5);
+            parts.Volante.rotation.y = bal * 2.3;
+            parts.Ancora.rotation.y = Math.tanh(bal * 5) * 0.14;
+            const beat = t * 5, step = Math.floor(beat), ease = smooth(clamp((beat - step) * 4));
+            parts.Rueda_Escape.rotation.y = -(step + ease) * (TAU / 40);
+            parts.Rueda_Segundos.rotation.y = -sec / 60 * TAU;
+            parts.Rueda_Tercera.rotation.y = sec / 60 * TAU / 7.5;
+            parts.Rueda_Centro.rotation.y = -min / 60 * TAU;
+            parts.Barrilete.rotation.y = min / 60 * TAU / 8;
+            wind += (st.wind * 4 + dragWind - wind) * (1 - Math.exp(-dt * 6));
+            parts.Corona.rotation.x = wind * 2.4;
+            parts.Trinquete.rotation.y = -wind * 0.42;
+            const reserve = Math.round(clamp(6 + Math.abs(wind) * 6, 6, 42));
+            if (reserve !== lastReserve) {
+                lastReserve = reserve;
+                $('#resVal').textContent = reserve + ' h';
+                $('#resBar').style.width = (reserve / 42 * 100).toFixed(1) + '%';
+            }
+
+            // rotor: péndulo real, la parte pesada busca la gravedad
+            down.set(0, -1, 0).applyQuaternion(qInv.copy(watch.quaternion).invert());
+            const gIn = Math.hypot(down.x, down.z);
+            let e = Math.atan2(down.z, down.x) - (Math.PI / 2 - rotorA);
+            e = Math.atan2(Math.sin(e), Math.cos(e));
+            rotorV += (-16 * gIn * Math.sin(e) - 1.1 * rotorV) * dt;
+            rotorA += rotorV * dt;
+            parts.Rotor.rotation.y = rotorA;
+        }
+
+        // ---------- luz, lume y color ----------
+        scene.environmentIntensity = st.light * lerp(0.15, 1, intro);
+        scene.environmentRotation.set(st.envX, st.env + t * 0.035, 0);
+        scene.background.copy(BG).lerp(BG_DARK, 1 - st.light);
+        halo.material.opacity = 0.55 * st.light * intro;
+        word.material.opacity = st.word * intro * 0.8;
+        // la marca gigante se queda centrada aunque el reloj se corra de lado
+        word.position.x = portrait ? 0 : -st.shift * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (st.dist + 11) * camera.aspect;
+        if (MATS.Lume) MATS.Lume.emissiveIntensity = st.lume * 2.2;
+        bloom.strength = 0.16 + st.lume * 0.5;
+        bloom.radius = lerp(0.55, 0.3, st.lume);
+        bloom.threshold = lerp(0.85, 0.4, st.lume);
+        const kc = 1 - Math.exp(-dt * 5);
+        for (const [n, tg] of Object.entries(TARGET)) {
+            const m = MATS[n]; if (!m) continue;
+            m.color.lerp(tg.color, kc);
+            if (tg.rough != null) m.roughness = lerp(m.roughness, tg.rough, kc);
+        }
+
+        // ---------- cámara ----------
+        const dist = st.dist * (portrait ? 1.25 + (1 - camera.aspect) * 1.6 : 1);
+        const ty = st.ty - (portrait ? dist * 0.12 : 0);
+        camera.position.set(st.tx, ty, dist);
+        camera.lookAt(st.tx, ty, 0);
+        camera.setViewOffset(innerWidth, innerHeight, portrait ? 0 : -st.shift * innerWidth, 0, innerWidth, innerHeight);
+
+        // ---------- etiquetas del despiece ----------
+        const lv = clamp(1 - Math.abs(c - 2.12) / 0.32) * (portrait ? 0 : 1);
+        labelsEl.style.opacity = lv;
+        if (lv > 0.01) {
+            scene.updateMatrixWorld();
+            camera.updateMatrixWorld();
+            const pts = LABELS.map(([n, , , r]) => {
+                parts[n].getWorldPosition(tmp);
+                const c0 = tmp.clone().project(camera);
+                tmp.x += r * 1.08;
+                const p = tmp.project(camera);
+                return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight, cy: (1 - c0.y) / 2 * innerHeight };
+            });
+            const col = Math.max(...pts.map(p => p.x)) + 120;
+            let lastY = -1e9, lines = '';
+            pts.forEach((p, i) => {
+                const y = Math.max(p.y, lastY + 34); lastY = y;
+                labelEls[i].style.transform = `translate(${col + 12}px, ${y - 9}px)`;
+                lines += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.6" fill="#d8b680"/>` +
+                    `<polyline points="${p.x.toFixed(1)},${p.y.toFixed(1)} ${(col - 18).toFixed(1)},${y.toFixed(1)} ${col.toFixed(1)},${y.toFixed(1)}" fill="none" stroke="rgba(216,182,128,.55)" stroke-width="1"/>`;
+            });
+            svg.innerHTML = lines;
+        }
+
+        if (st.lume > 0.02) composer.render();
+        else renderer.render(scene, camera);
+
+        // ---------- calidad adaptable ----------
+        if (!SHOT && t > 3) {
+            frameMs = lerp(frameMs, dt * 1000, 0.05);
+            if (t - lastAdapt > 1.2 && frameMs > 22 && dpr > 0.6) {
+                dpr = Math.max(0.6, dpr - 0.15);
+                lastAdapt = t;
+                layout();
+            }
+        }
+    }
+
+    /* ================================================================ arranque */
+    const fontsReady = Promise.race([document.fonts.load('400 120px "Bodoni Moda"'), new Promise(r => setTimeout(r, 2500))]);
+    Promise.all([loadModel(), fontsReady]).then(([root]) => {
+        drawWord();
+        setup(root);
+        c = SHOT ? Number(params.get('c')) : clamp(scrollY / H, 0, S.length - 1);
+        ready = true;
+        clock.start();
+        if (SHOT) $('#loader').style.transition = 'none';
+        introT0 = performance.now() + (SHOT ? 0 : 500);
+        requestAnimationFrame(() => setTimeout(() => $('#loader').classList.add('out'), SHOT ? 0 : 450));
+    }).catch(err => {
+        console.error(err);
+        $('#loadMsg').textContent = 'No se pudo cargar el reloj 3D';
+    });
+    requestAnimationFrame(frame);
+    </script>
+</body>
+</html>
